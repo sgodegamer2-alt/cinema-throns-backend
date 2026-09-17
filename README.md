@@ -1,6 +1,6 @@
 # Cinema Throns Backend
 
-Backend بسيط يوفر مصادر فيديو وترجمات عربية لموقع Cinema Throns.
+Backend يوفر مصادر فيديو وترجمات عربية لموقع Cinema Throns.
 
 ## Endpoints
 
@@ -10,3 +10,10 @@ Backend بسيط يوفر مصادر فيديو وترجمات عربية لمو
 - `GET /api/subtitle-download?file_id=xxx` - رابط تحميل الترجمة
 - `GET /api/subtitle-proxy?url=xxx` - Proxy + تحويل SRT→VTT
 - `GET /api/health` - فحص الحالة
+
+## النشر على Vercel
+
+1. اربط GitHub بـ Vercel
+2. اختر الـ repository
+3. أضف Environment Variable: `OPENSUBTITLES_API_KEY`
+4. Deploy
