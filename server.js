@@ -1,9 +1,6 @@
 /**
- * Cinema Throns Backend v3.0
- * - مصادر متعددة (VidSrc / MultiEmbed / Embed.su / VidLink)
- * - جلب ترجمة عربية من OpenSubtitles
- * - Cache لمدة 6 ساعات
- * - متوافق مع Vercel
+ * Cinema Throns Backend v4.0
+ * سيرفرات مُختبرة في العراق: MultiEmbed + VidLink
  */
 
 const express = require('express');
@@ -17,28 +14,28 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const OPENSUBTITLES_API_KEY = process.env.OPENSUBTITLES_API_KEY || 'Vdr9xOiX4VhM2nIfAsoHrUw2FwSo2b5B';
 
-// ========== Cache ==========
 const cache = new Map();
 const TTL = 6 * 60 * 60 * 1000;
 function setC(k, v) { cache.set(k, { v, e: Date.now() + TTL }); }
 function getC(k) { const i = cache.get(k); if (!i) return null; if (Date.now() > i.e) { cache.delete(k); return null; } return i.v; }
 
-// ========== مصادر الفيديو ==========
+// ========== سيرفران فقط (المختبران) ==========
 const SOURCES = {
-    vidsrc_to: (id, tv, s, e) => tv ? `https://vidsrc.to/embed/tv/${id}/${s}/${e}` : `https://vidsrc.to/embed/movie/${id}`,
-    vidsrc_xyz: (id, tv, s, e) => tv ? `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${s}&episode=${e}` : `https://vidsrc.xyz/embed/movie?tmdb=${id}`,
-    vidsrc_me: (id, tv, s, e) => tv ? `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}` : `https://vidsrc.me/embed/movie?tmdb=${id}`,
-    multiembed: (id, tv, s, e) => tv ? `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}` : `https://multiembed.mov/?video_id=${id}&tmdb=1`,
-    embed_su: (id, tv, s, e) => tv ? `https://embed.su/embed/tv/${id}/${s}/${e}` : `https://embed.su/embed/movie/${id}`,
-    autoembed: (id, tv, s, e) => tv ? `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}` : `https://player.autoembed.cc/embed/movie/${id}`,
-    vidlink: (id, tv, s, e) => tv ? `https://vidlink.pro/tv/${id}/${s}/${e}?primaryColor=dc2626&autoplay=true` : `https://vidlink.pro/movie/${id}?primaryColor=dc2626&autoplay=true`,
-    videasy: (id, tv, s, e) => tv ? `https://player.videasy.net/tv/${id}/${s}/${e}?color=dc2626` : `https://player.videasy.net/movie/${id}?color=dc2626`
+    multiembed: {
+        name: 'MultiEmbed',
+        supportsArabic: false,
+        build: (id, tv, s, e) => tv
+            ? `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`
+            : `https://multiembed.mov/?video_id=${id}&tmdb=1`
+    },
+    vidlink: {
+        name: 'VidLink',
+        supportsArabic: true,
+        build: (id, tv, s, e) => tv
+            ? `https://vidlink.pro/tv/${id}/${s}/${e}?primaryColor=dc2626&autoplay=true`
+            : `https://vidlink.pro/movie/${id}?primaryColor=dc2626&autoplay=true`
+    }
 };
-
-function buildStreamUrl(key, tmdbId, isTv, season = 1, episode = 1) {
-    const fn = SOURCES[key];
-    return fn ? fn(tmdbId, isTv, season, episode) : null;
-}
 
 // ========== OpenSubtitles ==========
 async function searchArabicSubs(tmdbId, isTv, season, episode) {
@@ -57,7 +54,7 @@ async function searchArabicSubs(tmdbId, isTv, season, episode) {
             params,
             headers: {
                 'Api-Key': OPENSUBTITLES_API_KEY,
-                'User-Agent': 'CinemaThrons v3',
+                'User-Agent': 'CinemaThrons v4',
                 'Accept': 'application/json'
             },
             timeout: 12000
@@ -92,7 +89,7 @@ async function getSubtitleDownloadLink(fileId) {
             {
                 headers: {
                     'Api-Key': OPENSUBTITLES_API_KEY,
-                    'User-Agent': 'CinemaThrons v3',
+                    'User-Agent': 'CinemaThrons v4',
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
@@ -110,8 +107,9 @@ async function getSubtitleDownloadLink(fileId) {
 app.get('/', (req, res) => {
     res.json({
         name: 'Cinema Throns Backend',
-        version: '3.0',
+        version: '4.0',
         status: 'online',
+        sources: Object.keys(SOURCES),
         endpoints: {
             stream: '/api/stream?tmdb_id=27205&type=movie',
             tv_stream: '/api/stream?tmdb_id=1399&type=tv&season=1&episode=1',
@@ -136,15 +134,13 @@ app.get('/api/stream', (req, res) => {
 
     const sources = [];
     for (const key of Object.keys(SOURCES)) {
-        const url = buildStreamUrl(key, tmdb_id, isTv, season, episode);
-        if (url) {
-            sources.push({
-                key,
-                name: key.replace(/_/g, '.').toUpperCase(),
-                url,
-                supportsArabic: ['vidsrc_to', 'vidsrc_xyz', 'vidsrc_me', 'embed_su', 'vidlink'].includes(key)
-            });
-        }
+        const s = SOURCES[key];
+        sources.push({
+            key,
+            name: s.name,
+            url: s.build(tmdb_id, isTv, season, episode),
+            supportsArabic: s.supportsArabic
+        });
     }
 
     const result = {
@@ -214,11 +210,9 @@ app.get('/api/subtitle-proxy', async (req, res) => {
     }
 });
 
-// ========== Vercel Export ==========
 module.exports = app;
 
 if (require.main === module) {
-    app.listen(PORT, () => {
-        console.log(`✅ Cinema Throns Backend running on port ${PORT}`);
-    });
+    app.listen(PORT, () => console.log(`✅ Cinema Throns Backend v4 on port ${PORT}`));
 }
+Use tested sources: MultiEmbed + VidLink
